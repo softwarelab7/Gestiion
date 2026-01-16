@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, Settings, Trash2 } from 'lucide-react';
+import { ArrowUpDown, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DataTableProps {
@@ -164,14 +164,6 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm }) => {
         setSortConfig({ key, direction });
     };
 
-    const onReset = () => {
-        setSortConfig(null);
-        setColumnFilters({});
-        if (data.length > 0) {
-            setVisibleColumns(Object.keys(data[0]));
-        }
-        setColumnWidths({});
-    };
 
     // Helper to render cell content with potential badges
     const renderCell = (key: string, value: any) => {

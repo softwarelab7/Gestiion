@@ -1,88 +1,56 @@
-import { useState } from 'react';
-import * as XLSX from 'xlsx';
+import { useState, useEffect, useRef } from 'react';
 import { UploadZone } from './components/UploadZone';
+import { ScrollToTop } from './components/ScrollToTop.tsx';
 import { DataTable } from './components/DataTable';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Package, FileText, LogOut, Search } from 'lucide-react';
+import { useDebounce } from './hooks/useDebounce';
+import ExcelWorker from './workers/excelWorker?worker'; // Vite worker import
 import './App.css';
 
 function App() {
   const [data, setData] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const [isLoading, setIsLoading] = useState(false);
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    // Initialize worker
+    workerRef.current = new ExcelWorker();
+
+    workerRef.current.onmessage = (e) => {
+      const { success, data, error } = e.data;
+      if (success) {
+        setData(data);
+      } else {
+        console.error("Worker Error:", error);
+        alert("Error al procesar el archivo.");
+      }
+      setIsLoading(false);
+    };
+
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
 
   const handleFileUpload = (file: File) => {
     setIsLoading(true);
-
-
     const reader = new FileReader();
     reader.onload = (e) => {
-      const bstr = e.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-
-      // Smart Header Detection
-      // 1. Get raw data as array of arrays
-      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-
-      // 2. Find the row with the most *filled* columns + keyword match in the first 25 rows
-      let maxScore = 0;
-      let headerRowIndex = 0;
-      const debugRows: string[] = [];
-      const commonHeaders = ['código', 'codigo', 'nombre', 'referencia', 'refer', 'descripción', 'descripcion', 'precio', 'costo', 'stock', 'cantidad', 'tipo', 'categoría', 'categoria', 'inventario', 'impuesto', 'impues'];
-
-      for (let i = 0; i < Math.min(rawData.length, 25); i++) {
-        const row = rawData[i];
-        if (!row) continue;
-
-        // Count non-empty cells
-        const filledCols = row.filter(cell => cell !== null && cell !== undefined && cell.toString().trim() !== '').length;
-
-        // Keyword matching score
-        let keywordScore = 0;
-        row.forEach((cell: any) => {
-          if (cell && typeof cell === 'string') {
-            const lowerCell = cell.toLowerCase();
-            if (commonHeaders.some(k => lowerCell.includes(k))) {
-              keywordScore += 10;
-            }
-          }
-        });
-
-        const totalScore = filledCols + keywordScore;
-        debugRows.push(`Row ${i}: ${filledCols} filled, Score ${totalScore}`);
-
-        if (totalScore > maxScore) {
-          maxScore = totalScore;
-          headerRowIndex = i;
-        }
+      const arrayBuffer = e.target?.result;
+      if (arrayBuffer && workerRef.current) {
+        workerRef.current.postMessage({ fileData: arrayBuffer });
       }
-
-      console.log('Debug Rows:', debugRows);
-      console.log('Selected Header Row:', headerRowIndex);
-
-
-      // 3. Parse specific range starting from detected header
-      // If we found a header row > 0, we use that.
-      const jsonData = XLSX.utils.sheet_to_json(ws, {
-        range: headerRowIndex,
-        defval: "" // Default value for empty cells
-      });
-
-      // Simulate loading for better UX feel
-      setTimeout(() => {
-        setData(jsonData);
-        setIsLoading(false);
-      }, 800);
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleReset = () => {
     setData([]);
-
+    setSearchTerm('');
   };
 
   return (
@@ -163,7 +131,7 @@ function App() {
               <DataTable
                 key="table"
                 data={data}
-                searchTerm={searchTerm}
+                searchTerm={debouncedSearchTerm}
 
               />
             )}
@@ -184,6 +152,8 @@ function App() {
           <span>Gestor de Inventario © 2026 - Experiencia de Datos Moderna</span>
         </div>
       </footer>
+
+      <ScrollToTop />
     </div >
   );
 }

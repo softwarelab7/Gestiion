@@ -124,35 +124,36 @@ body {
 .main-content {
   padding: 1.5rem;
   flex: 1;
-  max-width: 100%;
+  width: 100%;
+  max-width: 98%;
+  margin: 2rem auto 0 auto;
 }
 
 /* Data Table Container */
 .data-container {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
+  border-radius: 12px;
   /* Squarer, more industrial look */
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 80px);
-  /* Tighter fit to viewport */
-  /* Fill remaining space */
-  overflow: hidden;
-  /* Ensure internal scrolling */
+  min-height: calc(100vh - 150px);
+  height: auto;
+  overflow: visible;
 }
 
 .table-wrapper {
   flex: 1;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: visible;
   min-height: 0;
   /* Crucial for nested flex scrolling */
 }
 
 /* Toolbar */
 .table-controls {
-  padding: 0.75rem 1rem;
+  padding: 0.25rem 0.5rem;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--slate-50);
   display: flex;
@@ -280,11 +281,11 @@ th:not(:last-child) {
 td {
   padding: 0.25rem 0.75rem;
   /* Ultra compact vertical padding */
-  color: var(--slate-700);
+  color: var(--slate-600);
   border-bottom: 1px solid var(--border-subtle);
   border-right: 1px solid var(--border-subtle);
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
   /* Ultra compact data */
   /* Monospace for data */
   white-space: nowrap;
