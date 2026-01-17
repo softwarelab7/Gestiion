@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowUpDown, Settings } from 'lucide-react';
+import { ArrowUpDown, Settings, Filter, Search, X } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { RangeFilter, SelectFilter } from './FilterComponents';
 
 interface DataTableProps {
     data: any[];
@@ -11,26 +12,28 @@ interface DataTableProps {
 
 export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilteredDataChange }) => {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
-    const [columnFilters, setColumnFilters] = useState<{ [key: string]: string }>({});
+    // Removed old columnFilters in favor of unified 'filters' state
     const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
     const [showColumnSelector, setShowColumnSelector] = useState(false);
     const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
+
+    // Advanced Filters State
+    const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
+    const [filters, setFilters] = useState<Record<string, any>>({});
+
     const resizingRef = React.useRef<{ startX: number; startWidth: number; header: string } | null>(null);
     const settingsMenuRef = React.useRef<HTMLDivElement>(null);
+    const filterMenuRef = React.useRef<HTMLDivElement>(null);
     const parentRef = React.useRef<HTMLDivElement>(null);
 
-    // Initialize visible columns when data changes
-    React.useEffect(() => {
-        if (data.length > 0) {
-            setVisibleColumns(Object.keys(data[0]));
-        }
-    }, [data]);
-
-    // Click outside handler for settings menu
+    // Click outside handler for menus
     React.useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (showColumnSelector && settingsMenuRef.current && !settingsMenuRef.current.contains(event.target as Node)) {
                 setShowColumnSelector(false);
+            }
+            if (activeFilterCol && filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
+                setActiveFilterCol(null);
             }
         };
 
@@ -38,7 +41,14 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showColumnSelector]);
+    }, [showColumnSelector, activeFilterCol]);
+
+    // Initialize visible columns when data changes
+    React.useEffect(() => {
+        if (data.length > 0) {
+            setVisibleColumns(Object.keys(data[0]));
+        }
+    }, [data]);
 
     const headers = useMemo(() => {
         if (data.length === 0) return [];
@@ -111,12 +121,31 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
     const filteredData = useMemo(() => {
         let result = [...data];
 
-        if (Object.keys(columnFilters).length > 0) {
+        if (Object.keys(filters).length > 0) {
             result = result.filter(row => {
-                return Object.entries(columnFilters).every(([key, value]) => {
-                    if (!value) return true;
-                    const cellValue = row[key]?.toString().toLowerCase() || '';
-                    return cellValue.includes(value.toLowerCase());
+                return Object.entries(filters).every(([key, filterValue]) => {
+                    if (!filterValue) return true;
+
+                    const rowValue = row[key];
+
+                    // Range Filter
+                    if (filterValue.min !== undefined || filterValue.max !== undefined) {
+                        const numVal = Number(rowValue);
+                        if (isNaN(numVal)) return true;
+                        if (filterValue.min !== null && numVal < filterValue.min) return false;
+                        if (filterValue.max !== null && numVal > filterValue.max) return false;
+                        return true;
+                    }
+
+                    // Select Filter (Multi)
+                    if (Array.isArray(filterValue)) {
+                        if (filterValue.length === 0) return true;
+                        return filterValue.includes(rowValue?.toString());
+                    }
+
+                    // Text Filter (Default)
+                    const cellValue = rowValue?.toString().toLowerCase() || '';
+                    return cellValue.includes(filterValue.toString().toLowerCase());
                 });
             });
         }
@@ -144,7 +173,8 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
 
 
         return result;
-    }, [data, searchTerm, sortConfig, columnFilters, visibleColumns]);
+        return result;
+    }, [data, searchTerm, sortConfig, filters, visibleColumns]);
 
     // Notify parent of filtered data changes
     useEffect(() => {
@@ -167,11 +197,38 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
         );
     };
 
-    const handleColumnFilterChange = (column: string, value: string) => {
-        setColumnFilters(prev => ({
-            ...prev,
-            [column]: value
-        }));
+    const getColumnType = (key: string) => {
+        // Heuristic to detect type
+        if (!data || data.length === 0) return 'text';
+
+        // Check for specific keywords first
+        const lowerKey = key.toLowerCase();
+        if (lowerKey.includes('estado') || lowerKey.includes('status') || lowerKey.includes('cat')) return 'select';
+
+        // Check data content of first few rows
+        for (let i = 0; i < Math.min(data.length, 10); i++) {
+            const val = data[i][key];
+            if (val !== null && val !== undefined && val !== '') {
+                if (typeof val === 'number') return 'number';
+                return 'text';
+            }
+        }
+        return 'text';
+    };
+
+    const getColumnStats = (key: string) => {
+        if (!data) return { min: 0, max: 0, uniqueValues: [] };
+
+        const type = getColumnType(key);
+        if (type === 'number') {
+            const numbers = data.map(r => Number(r[key])).filter(n => !isNaN(n));
+            return { min: Math.min(...numbers), max: Math.max(...numbers), uniqueValues: [] };
+        }
+        if (type === 'select') {
+            const values = new Set(data.map(r => r[key]?.toString()).filter(Boolean));
+            return { min: 0, max: 0, uniqueValues: Array.from(values).sort() };
+        }
+        return { min: 0, max: 0, uniqueValues: [] };
     };
 
     const handleSort = (key: string) => {
@@ -280,24 +337,110 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
                                             )}
                                         </div>
                                         {/* Inline Filter */}
-                                        <div style={{ position: 'relative' }}>
-                                            <input
-                                                type="text"
-                                                value={columnFilters[header] || ''}
-                                                onChange={(e) => handleColumnFilterChange(header, e.target.value)}
-                                                placeholder="Filtrar..."
-                                                style={{
-                                                    width: '100%',
-                                                    background: 'rgba(255,255,255,0.1)',
-                                                    border: '1px solid var(--slate-700)',
-                                                    color: 'var(--slate-200)',
-                                                    fontSize: '0.7rem',
-                                                    padding: '2px 4px',
-                                                    borderRadius: '2px',
-                                                    outline: 'none'
-                                                }}
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '2px' }}>
+                                            {/* Filter Display/Trigger */}
+                                            {filters[header] ? (
+                                                <div
+                                                    className="badge badge-primary px-2 py-0.5 text-[10px] cursor-pointer flex items-center gap-1 w-full overflow-hidden"
+                                                    onClick={(e) => { e.stopPropagation(); setActiveFilterCol(activeFilterCol === header ? null : header); }}
+                                                >
+                                                    <Filter size={10} />
+                                                    <span className="truncate">
+                                                        {typeof filters[header] === 'object' && 'min' in filters[header] ? 'Rango' :
+                                                            Array.isArray(filters[header]) ? `${filters[header].length}` :
+                                                                filters[header]}
+                                                    </span>
+                                                    <X
+                                                        size={10}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const newFilters = { ...filters };
+                                                            delete newFilters[header];
+                                                            setFilters(newFilters);
+                                                        }}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setActiveFilterCol(activeFilterCol === header ? null : header); }}
+                                                    className={`btn-icon-xs ${activeFilterCol === header ? 'text-blue-500 bg-blue-50' : 'text-slate-400 hover:text-blue-500'}`}
+                                                    style={{ width: '100%', justifyContent: 'flex-start', paddingLeft: '4px' }}
+                                                >
+                                                    <Search size={12} />
+                                                    <span className="text-[10px] ml-1">Filtrar...</span>
+                                                </button>
+                                            )}
+
+                                            {/* Filter Popover */}
+                                            {activeFilterCol === header && (
+                                                <div
+                                                    ref={filterMenuRef}
+                                                    style={{ position: 'absolute', top: '100%', left: 0, zIndex: 100, marginTop: '4px' }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    {(() => {
+                                                        const type = getColumnType(header);
+                                                        const stats = getColumnStats(header);
+
+                                                        if (type === 'number') {
+                                                            return (
+                                                                <RangeFilter
+                                                                    min={stats.min}
+                                                                    max={stats.max}
+                                                                    currentRange={filters[header] || { min: null, max: null }}
+                                                                    onChange={(range) => {
+                                                                        if (range.min === null && range.max === null) {
+                                                                            const newF = { ...filters };
+                                                                            delete newF[header];
+                                                                            setFilters(newF);
+                                                                        } else {
+                                                                            setFilters(prev => ({ ...prev, [header]: range }));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            );
+                                                        }
+                                                        if (type === 'select') {
+                                                            return (
+                                                                <SelectFilter
+                                                                    options={stats.uniqueValues}
+                                                                    selected={filters[header] || []}
+                                                                    onChange={(selected) => {
+                                                                        if (selected.length === 0) {
+                                                                            const newF = { ...filters };
+                                                                            delete newF[header];
+                                                                            setFilters(newF);
+                                                                        } else {
+                                                                            setFilters(prev => ({ ...prev, [header]: selected }));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            );
+                                                        }
+                                                        // Default Text
+                                                        return (
+                                                            <div className="p-2 bg-white rounded shadow-xl border border-slate-200 w-48">
+                                                                <input
+                                                                    autoFocus
+                                                                    className="input input-sm w-full"
+                                                                    placeholder="Buscar texto..."
+                                                                    value={filters[header] || ''}
+                                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                                        const val = e.target.value;
+                                                                        if (!val) {
+                                                                            const newF = { ...filters };
+                                                                            delete newF[header];
+                                                                            setFilters(newF);
+                                                                        } else {
+                                                                            setFilters(prev => ({ ...prev, [header]: val }));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <div

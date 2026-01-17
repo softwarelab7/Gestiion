@@ -168,17 +168,18 @@ function App() {
               <UploadZone key="upload" onFileUpload={handleFileUpload} />
             ) : (
               <>
+                <DashboardStats data={filteredData} />
                 <DataTable
                   key="table"
                   data={data}
                   searchTerm={debouncedSearchTerm}
                   onFilteredDataChange={setFilteredData}
                 />
-                <DashboardStats data={filteredData} />
               </>
             )}
           </AnimatePresence>
         </main>
+
       </div>
 
       <footer style={{

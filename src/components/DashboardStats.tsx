@@ -168,3 +168,4 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ data }) => {
         </motion.div>
     );
 };
+
