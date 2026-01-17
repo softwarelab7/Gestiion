@@ -2,34 +2,62 @@ import { useState, useEffect, useRef } from 'react';
 import { UploadZone } from './components/UploadZone';
 import { ScrollToTop } from './components/ScrollToTop.tsx';
 import { DataTable } from './components/DataTable';
+import { DashboardStats } from './components/DashboardStats';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Package, FileText, LogOut, Search } from 'lucide-react';
 import { useDebounce } from './hooks/useDebounce';
 import ExcelWorker from './workers/excelWorker?worker'; // Vite worker import
+import { saveInventory, getInventory, clearInventory } from './db';
 import './App.css';
+
 
 function App() {
   const [data, setData] = useState<any[]>([]);
+  const [filteredData, setFilteredData] = useState<any[]>([]);
+  // ... rest of component logic ...
+  // Wait, wrapping requires moving the whole component logic into a child or wrapping the return.
+  // Refactor: Move App logic to AppContent, make App the provider wrapper.
+
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
     // Initialize worker
     workerRef.current = new ExcelWorker();
 
-    workerRef.current.onmessage = (e) => {
+    workerRef.current.onmessage = async (e) => {
       const { success, data, error } = e.data;
       if (success) {
         setData(data);
+        setFilteredData(data); // Init filtered data
+        await saveInventory(data); // Persist data
       } else {
         console.error("Worker Error:", error);
         alert("Error al procesar el archivo.");
       }
       setIsLoading(false);
     };
+
+    // Restore data
+    const restoreData = async () => {
+      try {
+        const savedData = await getInventory();
+        if (savedData && savedData.length > 0) {
+          setData(savedData);
+          setFilteredData(savedData); // Init filtered data
+        }
+      } catch (error) {
+        console.error("Error restoring data:", error);
+      } finally {
+        setIsRestoring(false);
+      }
+    };
+
+    restoreData();
 
     return () => {
       workerRef.current?.terminate();
@@ -48,20 +76,29 @@ function App() {
     reader.readAsArrayBuffer(file);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    await clearInventory();
     setData([]);
+    setFilteredData([]);
     setSearchTerm('');
   };
 
-  return (
+  if (isRestoring) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-app)' }}>
+        <div className="loader"></div>
+      </div>
+    );
+  }
 
+  return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <div className="top-banner">
         <div className="top-banner-brand">
           <div style={{
             background: 'var(--blue-600)',
             padding: '0.4rem',
-            borderRadius: '8px', /* Sharper corners for industrial look */
+            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
@@ -79,36 +116,38 @@ function App() {
           </div>
         </div>
 
-        {data.length > 0 && (
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ position: 'relative', width: '300px' }}>
-              <Search
-                size={16}
-                className="text-slate-400"
-                style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }}
-              />
-              <input
-                type="text"
-                className="search-input"
-                placeholder="BUSCAR DATOS..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ width: '100%' }}
-              />
-            </div>
-            <button
-              className="btn btn-icon"
-              onClick={handleReset}
-              title="Salir"
-              style={{
-                background: 'white',
-                border: '1px solid var(--slate-200)'
-              }}
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {data.length > 0 && (
+            <>
+              <div style={{ position: 'relative', width: '300px' }}>
+                <Search
+                  size={16}
+                  className="text-slate-400"
+                  style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }}
+                />
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="BUSCAR DATOS..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <button
+                className="btn btn-icon"
+                onClick={handleReset}
+                title="Salir"
+                style={{
+                  background: 'white',
+                  border: '1px solid var(--slate-200)'
+                }}
+              >
+                <LogOut size={18} />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="app-container">
@@ -128,12 +167,15 @@ function App() {
             ) : data.length === 0 ? (
               <UploadZone key="upload" onFileUpload={handleFileUpload} />
             ) : (
-              <DataTable
-                key="table"
-                data={data}
-                searchTerm={debouncedSearchTerm}
-
-              />
+              <>
+                <DataTable
+                  key="table"
+                  data={data}
+                  searchTerm={debouncedSearchTerm}
+                  onFilteredDataChange={setFilteredData}
+                />
+                <DashboardStats data={filteredData} />
+              </>
             )}
           </AnimatePresence>
         </main>
@@ -154,7 +196,7 @@ function App() {
       </footer>
 
       <ScrollToTop />
-    </div >
+    </div>
   );
 }
 

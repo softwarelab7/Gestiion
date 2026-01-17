@@ -1,13 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUpDown, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DataTableProps {
     data: any[];
     searchTerm: string;
+    onFilteredDataChange?: (data: any[]) => void;
 }
 
-export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm }) => {
+export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilteredDataChange }) => {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
     const [columnFilters, setColumnFilters] = useState<{ [key: string]: string }>({});
     const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
@@ -15,6 +17,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm }) => {
     const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
     const resizingRef = React.useRef<{ startX: number; startWidth: number; header: string } | null>(null);
     const settingsMenuRef = React.useRef<HTMLDivElement>(null);
+    const parentRef = React.useRef<HTMLDivElement>(null);
 
     // Initialize visible columns when data changes
     React.useEffect(() => {
@@ -138,8 +141,23 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm }) => {
             });
         }
 
+
+
         return result;
     }, [data, searchTerm, sortConfig, columnFilters, visibleColumns]);
+
+    // Notify parent of filtered data changes
+    useEffect(() => {
+        onFilteredDataChange?.(filteredData);
+    }, [filteredData, onFilteredDataChange]);
+
+    // Virtualizer
+    const rowVirtualizer = useVirtualizer({
+        count: filteredData.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => 35, // Approximate row height
+        overscan: 20,
+    });
 
     const toggleColumn = (column: string) => {
         setVisibleColumns(prev =>
@@ -188,8 +206,9 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="data-container"
+            style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}
         >
-            <div className="table-controls" style={{ justifyContent: 'flex-end' }}>
+            <div className="table-controls" style={{ justifyContent: 'flex-end', flexShrink: 0 }}>
                 <div style={{ display: 'flex', gap: '0.25rem' }}>
                     <div style={{ position: 'relative' }} ref={settingsMenuRef}>
                         <button
@@ -234,9 +253,18 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm }) => {
                 </div>
             </div>
 
-            <div className="table-wrapper">
-                <table>
-                    <thead>
+            <div
+                className="table-wrapper"
+                ref={parentRef}
+                style={{
+                    overflow: 'auto',
+                    height: '100%',
+                    position: 'relative' // Ensure context
+                }}
+            >
+                {/* No inner div with height or transforms here, we simulate height inside the table */}
+                <table style={{ tableLayout: 'fixed', width: '100%', borderCollapse: 'separate' }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-header)' }}>
                         <tr>
                             <th style={{ width: '60px', textAlign: 'center' }}>#</th>
                             {visibleColumns.map((header) => (
@@ -282,30 +310,49 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredData.slice(0, 500).map((row, idx) => (
-                            <tr key={idx}>
-                                <td style={{ textAlign: 'center', color: 'var(--slate-400)', borderRight: '1px solid var(--border-subtle)' }}>
-                                    {idx + 1}
-                                </td>
-                                {visibleColumns.map((header) => (
-                                    <td key={`${idx}-${header}`}>
-                                        {renderCell(header, row[header])}
-                                    </td>
-                                ))}
+                        {rowVirtualizer.getVirtualItems().length > 0 && (
+                            <tr style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }}>
+                                <td colSpan={visibleColumns.length + 1} style={{ padding: 0, border: 'none' }} />
                             </tr>
-                        ))}
+                        )}
+                        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                            const row = filteredData[virtualRow.index];
+                            return (
+                                <tr
+                                    key={virtualRow.index}
+                                    data-index={virtualRow.index}
+                                    ref={rowVirtualizer.measureElement}
+                                >
+                                    <td style={{ textAlign: 'center', color: 'var(--slate-400)', borderRight: '1px solid var(--border-subtle)' }}>
+                                        {virtualRow.index + 1}
+                                    </td>
+                                    {visibleColumns.map((header) => (
+                                        <td key={`${virtualRow.index}-${header}`}>
+                                            {renderCell(header, row[header])}
+                                        </td>
+                                    ))}
+                                </tr>
+                            );
+                        })}
+                        {rowVirtualizer.getVirtualItems().length > 0 && (
+                            <tr style={{ height: `${rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end}px` }}>
+                                <td colSpan={visibleColumns.length + 1} style={{ padding: 0, border: 'none' }} />
+                            </tr>
+                        )}
                     </tbody>
                 </table>
-                {filteredData.length === 0 && (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                        NO SE ENCONTRARON DATOS
-                    </div>
-                )}
             </div>
-            <div style={{ padding: '0.5rem 1rem', borderTop: '1px solid var(--border-subtle)', background: 'var(--slate-50)', fontSize: '0.75rem', color: 'var(--slate-500)', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Vista: Alta Densidad</span>
+
+            {filteredData.length === 0 && (
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    NO SE ENCONTRARON DATOS
+                </div>
+            )}
+
+            <div style={{ padding: '0.5rem 1rem', borderTop: '1px solid var(--border-subtle)', background: 'var(--slate-50)', fontSize: '0.75rem', color: 'var(--slate-500)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
+                <span>Vista: Virtualizada</span>
                 <span>{filteredData.length} registros</span>
             </div>
-        </motion.div>
+        </motion.div >
     );
 };
