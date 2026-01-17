@@ -13,7 +13,6 @@ self.onmessage = async (e: MessageEvent) => {
 
         let maxScore = 0;
         let headerRowIndex = 0;
-        const debugRows: string[] = [];
         const commonHeaders = ['código', 'codigo', 'nombre', 'referencia', 'refer', 'descripción', 'descripcion', 'precio', 'costo', 'stock', 'cantidad', 'tipo', 'categoría', 'categoria', 'inventario', 'impuesto', 'impues'];
 
         for (let i = 0; i < Math.min(rawData.length, 25); i++) {

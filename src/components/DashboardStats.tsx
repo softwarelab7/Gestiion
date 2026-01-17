@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Package, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Package, DollarSign, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DashboardStatsProps {
