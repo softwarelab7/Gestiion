@@ -573,3 +573,12 @@ tbody tr:hover .index-badge {
   color: var(--blue-700);
   border-color: var(--blue-200);
 }
+
+.highlight-match {
+  background: rgba(59, 130, 246, 0.25) !important;
+  color: #1d4ed8 !important;
+  /* blue-700 for better legibility */
+  padding: 0 1px;
+  border-radius: 2px;
+  font-weight: 700;
+}
