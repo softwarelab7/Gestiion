@@ -81,7 +81,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
                 headers.forEach(h => {
                     if (!newWidths[h]) newWidths[h] = h.toLowerCase().includes('id') ? 80 : 150;
                 });
-                if (!newWidths['__index__']) newWidths['__index__'] = 32;
+                if (!newWidths['__index__']) newWidths['__index__'] = 20;
                 return newWidths;
             });
         }
@@ -352,7 +352,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
                 <table style={{ tableLayout: 'fixed', width: '100%', borderCollapse: 'separate' }}>
                     <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-header)' }}>
                         <tr>
-                            <th style={{ width: '22px', textAlign: 'center', position: 'relative' }}>
+                            <th style={{ width: '20px', textAlign: 'center', position: 'relative', verticalAlign: 'top', paddingTop: '8px' }}>
                                 #
                             </th>
                             {visibleColumns.map((header) => (
@@ -423,9 +423,9 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
                                         textAlign: 'center',
                                         borderRight: '1px solid var(--border-subtle)',
                                         padding: '0.1rem',
-                                        width: '22px',
-                                        minWidth: '22px',
-                                        maxWidth: '22px'
+                                        width: '20px',
+                                        minWidth: '20px',
+                                        maxWidth: '20px'
                                     }}>
                                         <span className="index-badge">{vRow.index + 1}</span>
                                     </td>

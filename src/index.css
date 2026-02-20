@@ -487,18 +487,17 @@ th:hover .resizer,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  /* Restored to be closer to original but still fits 22px */
-  height: 18px;
-  padding: 0 2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 1px;
   background: var(--slate-100);
   color: var(--slate-600);
   /* Darker for better contrast */
-  border-radius: 4px;
+  border-radius: 3px;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   /* Restored/Improved font size */
-  font-weight: 600;
+  font-weight: 700;
   border: 1px solid var(--slate-200);
   transition: all 0.2s ease;
 }
