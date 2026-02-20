@@ -309,7 +309,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
                                             <div className="filter-input-wrapper">
                                                 <input
                                                     type="text"
-                                                    className="header-filter-input"
+                                                    className={`header-filter-input ${filters[header] ? 'has-value' : ''}`}
                                                     placeholder="Filtrar..."
                                                     value={filters[header] || ''}
                                                     onChange={(e) => {
@@ -324,9 +324,19 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
                                                     }}
                                                     onClick={(e) => e.stopPropagation()}
                                                 />
-                                                <div className="filter-icon-header">
-                                                    <Search size={10} />
-                                                </div>
+                                                <AnimatePresence>
+                                                    {!filters[header] && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, scale: 0.8, x: -5 }}
+                                                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.8, x: -5 }}
+                                                            transition={{ duration: 0.2, ease: "easeOut" }}
+                                                            className="filter-icon-header"
+                                                        >
+                                                            <Search size={10} />
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
                                             </div>
                                         </div>
                                     </div>

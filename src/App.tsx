@@ -30,7 +30,15 @@ function App() {
     workerRef.current = new ExcelWorker();
 
     workerRef.current.onmessage = async (e) => {
-      const { success, data, error } = e.data;
+      const payload = e.data;
+
+      // Handle debug logs from worker
+      if (payload.type === 'log') {
+        console.warn("DEBUG_LOG:", payload.message);
+        return;
+      }
+
+      const { success, data, error } = payload;
       if (success) {
         setData(data);
         setFilteredData(data); // Init filtered data
