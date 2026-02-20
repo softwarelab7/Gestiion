@@ -231,9 +231,14 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
     });
 
     const toggleColumn = (column: string) => {
-        setVisibleColumns(prev =>
-            prev.includes(column) ? prev.filter(c => c !== column) : [...prev, column]
-        );
+        setVisibleColumns(prev => {
+            const next = prev.includes(column)
+                ? prev.filter(c => c !== column)
+                : [...prev, column];
+
+            // Sort to maintain original order
+            return [...headers].filter(h => next.includes(h));
+        });
     };
 
 
