@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowUpDown, Settings, Filter, Search, X } from 'lucide-react';
+import { ArrowUpDown, Settings, Filter, Search, X, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as XLSX from 'xlsx';
 
 interface DataTableProps {
     data: any[];
@@ -37,9 +38,37 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
 
     React.useEffect(() => {
         if (data.length > 0) {
+            const headersStr = Object.keys(data[0]).join(',');
+            const savedState = localStorage.getItem('table-persistence');
+
+            if (savedState) {
+                try {
+                    const parsed = JSON.parse(savedState);
+                    if (parsed.headersStr === headersStr) {
+                        if (parsed.visibleColumns) setVisibleColumns(parsed.visibleColumns);
+                        if (parsed.columnWidths) setColumnWidths(parsed.columnWidths);
+                        if (parsed.filters) setFilters(parsed.filters);
+                        if (parsed.sortConfig) setSortConfig(parsed.sortConfig);
+                        return;
+                    }
+                } catch (e) { console.error("Error loading state", e); }
+            }
             setVisibleColumns(Object.keys(data[0]));
         }
     }, [data]);
+
+    useEffect(() => {
+        if (data.length > 0) {
+            const headersStr = Object.keys(data[0]).join(',');
+            localStorage.setItem('table-persistence', JSON.stringify({
+                headersStr,
+                visibleColumns,
+                columnWidths,
+                filters,
+                sortConfig
+            }));
+        }
+    }, [data, visibleColumns, columnWidths, filters, sortConfig]);
 
     const headers = useMemo(() => {
         if (data.length === 0) return [];
@@ -102,26 +131,63 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
         setColumnWidths(prev => ({ ...prev, [header]: newWidth }));
     };
 
+    const evaluateFilter = (rowValue: any, filterValue: any) => {
+        if (!filterValue) return true;
+
+        if (filterValue.min !== undefined || filterValue.max !== undefined) {
+            const numVal = Number(rowValue);
+            if (isNaN(numVal)) return true;
+            if (filterValue.min !== null && numVal < filterValue.min) return false;
+            if (filterValue.max !== null && numVal > filterValue.max) return false;
+            return true;
+        }
+
+        if (Array.isArray(filterValue)) {
+            if (filterValue.length === 0) return true;
+            return filterValue.includes(rowValue?.toString());
+        }
+
+        const val = filterValue.toString().trim();
+        const numValue = Number(rowValue);
+
+        // Advanced Numeric Operators: >, <, >=, <=, =, !=
+        const opMatch = val.match(/^(>=|<=|>|<|=|!=)\s*(-?\d+(\.\d+)?)$/);
+        if (opMatch) {
+            const op = opMatch[1];
+            const target = Number(opMatch[2]);
+            if (!isNaN(numValue)) {
+                switch (op) {
+                    case '>': return numValue > target;
+                    case '<': return numValue < target;
+                    case '>=': return numValue >= target;
+                    case '<=': return numValue <= target;
+                    case '=': return numValue === target;
+                    case '!=': return numValue !== target;
+                }
+            }
+        }
+
+        // Range Operator: 10..20
+        if (val.includes('..')) {
+            const parts = val.split('..');
+            if (parts.length === 2) {
+                const min = Number(parts[0].trim());
+                const max = Number(parts[1].trim());
+                if (!isNaN(numValue) && !isNaN(min) && !isNaN(max)) {
+                    return numValue >= min && numValue <= max;
+                }
+            }
+        }
+
+        return rowValue?.toString().toLowerCase().includes(val.toLowerCase());
+    };
+
     const filteredData = useMemo(() => {
         let result = [...data];
         if (Object.keys(filters).length > 0) {
             result = result.filter(row => {
                 return Object.entries(filters).every(([key, filterValue]) => {
-                    if (!filterValue) return true;
-                    const rowValue = row[key];
-                    if (filterValue.min !== undefined || filterValue.max !== undefined) {
-                        const numVal = Number(rowValue);
-                        if (isNaN(numVal)) return true;
-                        if (filterValue.min !== null && numVal < filterValue.min) return false;
-                        if (filterValue.max !== null && numVal > filterValue.max) return false;
-                        return true;
-                    }
-                    if (Array.isArray(filterValue)) {
-                        if (filterValue.length === 0) return true;
-                        return filterValue.includes(rowValue?.toString());
-                    }
-                    const cellValue = rowValue?.toString().toLowerCase() || '';
-                    return cellValue.includes(filterValue.toString().toLowerCase());
+                    return evaluateFilter(row[key], filterValue);
                 });
             });
         }
@@ -134,8 +200,10 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
         }
         if (sortConfig) {
             result.sort((a, b) => {
-                if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-                if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+                const valA = a[sortConfig.key];
+                const valB = b[sortConfig.key];
+                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
                 return 0;
             });
         }
@@ -157,6 +225,13 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
         setVisibleColumns(prev =>
             prev.includes(column) ? prev.filter(c => c !== column) : [...prev, column]
         );
+    };
+
+    const handleExport = () => {
+        const worksheet = XLSX.utils.json_to_sheet(filteredData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario Filtrado");
+        XLSX.writeFile(workbook, `Inventario_Filtrado_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
 
@@ -232,6 +307,18 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
                 </div>
 
                 <div className="toolbar-actions">
+                    <button
+                        className="btn btn-primary"
+                        onClick={handleExport}
+                        title="Exportar a Excel"
+                        style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem' }}
+                    >
+                        <Download size={16} />
+                        <span className="hide-mobile">Exportar</span>
+                    </button>
+
+                    <div style={{ width: '1px', height: '20px', background: 'var(--slate-200)', margin: '0 0.5rem' }}></div>
+
                     <AnimatePresence>
                         {Object.keys(filters).length > 0 && (
                             <motion.button
