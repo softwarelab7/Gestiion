@@ -166,18 +166,45 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
         setSortConfig({ key, direction });
     };
 
+    const HighlightText = ({ text, term1, term2 }: { text: string; term1?: string; term2?: string }) => {
+        if (!text) return null;
+        const terms = [term1, term2].filter(Boolean) as string[];
+        if (terms.length === 0) return text;
+
+        const escapedTerms = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+        const parts = text.split(regex);
+
+        return (
+            <>
+                {parts.map((part, i) =>
+                    regex.test(part) ? (
+                        <span key={i} className="highlight-match">{part}</span>
+                    ) : (
+                        part
+                    )
+                )}
+            </>
+        );
+    };
+
     const renderCell = (key: string, value: any) => {
         const strValue = value?.toString() || '-';
         const lowerKey = key.toLowerCase();
+
+        const highlight = (txt: string) => (
+            <HighlightText text={txt} term1={searchTerm} term2={filters[key]} />
+        );
+
         if (lowerKey.includes('status') || lowerKey.includes('estado')) {
             let badgeClass = 'badge badge-neutral';
             const lowerVal = strValue.toLowerCase();
             if (lowerVal.includes('activ') || lowerVal.includes('ok') || lowerVal.includes('stock')) badgeClass = 'badge badge-success';
             else if (lowerVal.includes('pending') || lowerVal.includes('warn') || lowerVal.includes('bajo')) badgeClass = 'badge badge-warning';
             else if (lowerVal.includes('error') || lowerVal.includes('fail') || lowerVal.includes('agotado')) badgeClass = 'badge badge-danger';
-            return <span className={badgeClass}>{strValue}</span>;
+            return <span className={badgeClass}>{highlight(strValue)}</span>;
         }
-        return strValue;
+        return highlight(strValue);
     };
 
     return (
