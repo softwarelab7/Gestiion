@@ -44,20 +44,30 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
                 try {
                     const parsed = JSON.parse(savedState);
                     if (parsed.headersStr === headersStr) {
-                        if (parsed.visibleColumns) setVisibleColumns(parsed.visibleColumns);
+                        // Only restore if visibleColumns is not empty to avoid corrupted state
+                        if (parsed.visibleColumns && parsed.visibleColumns.length > 0) {
+                            setVisibleColumns(parsed.visibleColumns);
+                        } else {
+                            setVisibleColumns(Object.keys(data[0]));
+                        }
+
                         if (parsed.columnWidths) setColumnWidths(parsed.columnWidths);
                         if (parsed.filters) setFilters(parsed.filters);
                         if (parsed.sortConfig) setSortConfig(parsed.sortConfig);
                         return;
                     }
-                } catch (e) { console.error("Error loading state", e); }
+                } catch (e) {
+                    console.error("Error loading state", e);
+                    localStorage.removeItem('table-persistence'); // Clear corrupted state
+                }
             }
             setVisibleColumns(Object.keys(data[0]));
         }
     }, [data]);
 
     useEffect(() => {
-        if (data.length > 0) {
+        // Only save if columns have been initialized/selected
+        if (data.length > 0 && visibleColumns.length > 0) {
             const headersStr = Object.keys(data[0]).join(',');
             localStorage.setItem('table-persistence', JSON.stringify({
                 headersStr,
