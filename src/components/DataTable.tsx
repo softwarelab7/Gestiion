@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowUpDown, Settings, Filter, Search, X, Download } from 'lucide-react';
+import { ArrowUpDown, Settings, Filter, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
 
 interface DataTableProps {
     data: any[];
@@ -227,12 +226,6 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
         );
     };
 
-    const handleExport = () => {
-        const worksheet = XLSX.utils.json_to_sheet(filteredData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario Filtrado");
-        XLSX.writeFile(workbook, `Inventario_Filtrado_${new Date().toISOString().split('T')[0]}.xlsx`);
-    };
 
 
     const handleSort = (key: string) => {
@@ -307,18 +300,6 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
                 </div>
 
                 <div className="toolbar-actions">
-                    <button
-                        className="btn btn-primary"
-                        onClick={handleExport}
-                        title="Exportar a Excel"
-                        style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem' }}
-                    >
-                        <Download size={16} />
-                        <span className="hide-mobile">Exportar</span>
-                    </button>
-
-                    <div style={{ width: '1px', height: '20px', background: 'var(--slate-200)', margin: '0 0.5rem' }}></div>
-
                     <AnimatePresence>
                         {Object.keys(filters).length > 0 && (
                             <motion.button
