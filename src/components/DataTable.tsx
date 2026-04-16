@@ -91,7 +91,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, searchTerm, onFilter
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
     const [columnSizing, setColumnSizing] = useState({});
     const [showColumnSelector, setShowColumnSelector] = useState(false);
-    const { themeColor, setThemeColor } = useAppStore();
+    const { themeColor } = useAppStore();
     
     const settingsMenuRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
